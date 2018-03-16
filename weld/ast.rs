@@ -414,6 +414,10 @@ pub enum ExprKind {
         index: Box<Expr>,
         size: Box<Expr>,
     },
+    StrSlice {
+        data: Box<Expr>,
+        offset: Box<Expr>,
+    },
     Sort {
         data: Box<Expr>,
         keyfunc: Box<Expr>,
@@ -488,6 +492,7 @@ impl ExprKind {
             Lookup { .. } => "Lookup",
             KeyExists { .. } => "KeyExists",
             Slice { .. } => "Slice",
+            StrSlice { .. } => "StrSlice",
             Sort { .. } => "Sort",
             Let { .. } => "Let",
             If { .. } => "If",
@@ -654,6 +659,10 @@ impl Expr {
                 ref index,
                 ref size,
             } => vec![data.as_ref(), index.as_ref(), size.as_ref()],
+            StrSlice {
+                ref data,
+                ref offset,
+            } => vec![data.as_ref(), offset.as_ref()],
             Sort {
                 ref data,
                 ref keyfunc,
@@ -760,6 +769,10 @@ impl Expr {
                 ref mut index,
                 ref mut size,
             } => vec![data.as_mut(), index.as_mut(), size.as_mut()],
+            StrSlice {
+                ref mut data,
+                ref mut offset,
+            } => vec![data.as_mut(), offset.as_mut()],
             Sort {
                 ref mut data,
                 ref mut keyfunc,
@@ -892,6 +905,7 @@ impl Expr {
                 (&Lookup { .. }, &Lookup { .. }) => Ok(true),
                 (&KeyExists { .. }, &KeyExists { .. }) => Ok(true),
                 (&Slice { .. }, &Slice { .. }) => Ok(true),
+                (&StrSlice { .. }, &StrSlice { .. }) => Ok(true),
                 (&Sort { .. }, &Sort { .. }) => Ok(true),
                 (&Merge { .. }, &Merge { .. }) => Ok(true),
                 (&Res { .. }, &Res { .. }) => Ok(true),

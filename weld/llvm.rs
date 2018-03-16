@@ -2367,6 +2367,13 @@ impl LlvmGenerator {
                 VECSIZE=&format!("{}", llvm_simd_size(elem)?)));
             self.prelude_code.add("\n");
         }
+        if let &Scalar(I8) = elem {
+            self.prelude_code.add(format!(
+                include_str!("resources/vector/strslice.ll"),
+                ELEM=&elem_ty,
+                NAME=&name.replace("%", "")));
+            self.prelude_code.add("\n");
+        }
         Ok(())
     }
 
@@ -3433,6 +3440,24 @@ impl LlvmGenerator {
                                                 child_tmp,
                                                 index_tmp,
                                                 size_tmp));
+                self.gen_store_var(&res_ptr, &output_ll_sym, &output_ll_ty, ctx);
+            }
+
+            StrSlice { ref child, ref offset } => {
+                let (output_ll_ty, output_ll_sym) = self.llvm_type_and_name(func, output)?;
+                let (child_ll_ty, child_ll_sym) = self.llvm_type_and_name(func, child)?;
+                let (offset_ll_ty, offset_ll_sym) = self.llvm_type_and_name(func, offset)?;
+                let vec_prefix = llvm_prefix(&child_ll_ty);
+                let child_tmp = self.gen_load_var(&child_ll_sym, &child_ll_ty, ctx)?;
+                let offset_tmp = self.gen_load_var(&offset_ll_sym, &offset_ll_ty, ctx)?;
+                let res_ptr = ctx.var_ids.next();
+                ctx.code.add(format!("{} = call {} {}.strslice({} {}, i64{})",
+                                                res_ptr,
+                                                output_ll_ty,
+                                                vec_prefix,
+                                                child_ll_ty,
+                                                child_tmp,
+                                                offset_tmp));
                 self.gen_store_var(&res_ptr, &output_ll_sym, &output_ll_ty, ctx);
             }
 

@@ -68,6 +68,10 @@ pub enum StatementKind {
         index: Symbol,
         size: Symbol,
     },
+    StrSlice {
+        child: Symbol,
+        offset: Symbol,
+    },
     Sort {
         child: Symbol,
         keyfunc: SirFunction,
@@ -135,6 +139,13 @@ impl StatementKind {
                 vars.push(child);
                 vars.push(index);
                 vars.push(size);
+            }
+            StrSlice {
+                ref child,
+                ref offset,
+            } => {
+                vars.push(child);
+                vars.push(offset);
             }
             Sort {
                 ref child,
@@ -540,6 +551,10 @@ impl fmt::Display for StatementKind {
                 ref index,
                 ref size,
             } => write!(f, "slice({}, {}, {})", child, index, size),
+            StrSlice {
+                ref child,
+                ref offset,
+            } => write!(f, "strslice({}, {})", child, offset),
             Sort{ ref child, .. } => write!(f, "sort({})", child),
             ToVec(ref child) => write!(f, "toVec({})", child),
             UnaryOp {
@@ -976,6 +991,20 @@ fn gen_expr(expr: &Expr,
                 child: data_sym,
                 index: index_sym.clone(),
                 size: size_sym.clone(),
+            };
+            let res_sym = tracker.symbol_for_statement(prog, cur_func, cur_block, &expr.ty, kind);
+            Ok((cur_func, cur_block, res_sym))
+        }
+
+        ExprKind::StrSlice {
+            ref data,
+            ref offset,
+        } => {
+            let (cur_func, cur_block, data_sym) = gen_expr(data, prog, cur_func, cur_block, tracker, multithreaded)?;
+            let (cur_func, cur_block, offset_sym) = gen_expr(offset, prog, cur_func, cur_block, tracker, multithreaded)?;
+            let kind = StrSlice {
+                child: data_sym,
+                offset: offset_sym.clone(),
             };
             let res_sym = tracker.symbol_for_statement(prog, cur_func, cur_block, &expr.ty, kind);
             Ok((cur_func, cur_block, res_sym))

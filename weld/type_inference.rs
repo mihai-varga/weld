@@ -530,6 +530,19 @@ impl InferTypesInternal for Expr {
                 }
             }
 
+            StrSlice { ref mut data, ref mut offset } => {
+                if let Vector(_) = data.ty {
+                    let mut changed = false;
+                    changed |= offset.ty.push_complete(Scalar(I64))?;
+                    changed |= self.ty.push(&data.ty)?;
+                    Ok(changed)
+                } else if data.ty == Unknown {
+                    Ok(false)
+                } else {
+                    compile_err!("Expected vector type in strslice, got {}", print_type(&data.ty))
+                }
+            }
+
             Sort { ref mut data, ref mut keyfunc } => {
                 if let Vector(ref elem_type) = data.ty {
                     let mut changed = sync_function(keyfunc, vec![&elem_type])?;

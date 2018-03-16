@@ -211,6 +211,29 @@ pub fn slice_expr(data: Expr, index: Expr, size: Expr) -> WeldResult<Expr> {
              ty)
 }
 
+pub fn strslice_expr(data: Expr, offset: Expr) -> WeldResult<Expr> {
+    let mut type_checked = 0;
+
+    if let Vector(_) = data.ty {
+        type_checked += 1;
+    }
+
+    if let Scalar(ScalarKind::I64) = offset.ty {
+        type_checked += 1;
+    }
+
+    if type_checked != 2 {
+        return compile_err!("Internal error: Mismatched types in strslice_expr");
+    }
+
+    let ty = data.ty.clone();
+    new_expr(StrSlice {
+                 data: Box::new(data),
+                 offset: Box::new(offset),
+             },
+             ty)
+}
+
 pub fn sort_expr(data: Expr, keyfunc: Expr) -> WeldResult<Expr> {
     let mut type_checked = false;
 

@@ -361,6 +361,15 @@ fn print_expr_impl(expr: &Expr,
                     print_expr_impl(size, typed, indent, should_indent))
         }
 
+        StrSlice {
+            ref data,
+            ref offset,
+        } => {
+            format!("strslice({},{})",
+                    print_expr_impl(data, typed, indent, should_indent),
+                    print_expr_impl(offset, typed, indent, should_indent))
+        }
+
         Sort {
             ref data,
             ref keyfunc,

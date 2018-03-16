@@ -1023,6 +1023,19 @@ impl<'t> Parser<'t> {
                             Annotations::new()))
             }
 
+            TStrSlice => {
+                try!(self.consume(TOpenParen));
+                let data = try!(self.expr());
+                try!(self.consume(TComma));
+                let offset = try!(self.expr());
+                try!(self.consume(TCloseParen));
+                Ok(expr_box(StrSlice {
+                                data: data,
+                                offset: offset,
+                            },
+                            Annotations::new()))
+            }
+
             TSort => {
                 try!(self.consume(TOpenParen));
                 let data = try!(self.expr());
