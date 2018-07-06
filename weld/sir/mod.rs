@@ -237,16 +237,18 @@ struct ProgramSite(FunctionId, BasicBlockId);
 type SiteSymbolMap = fnv::FnvHashMap<StatementKind, Symbol>;
 
 struct StatementTracker {
-    generated: fnv::FnvHashMap<ProgramSite,SiteSymbolMap>,
+    generated: fnv::FnvHashMap<ProgramSite,SiteSymbolMap>, 
+    in_for: bool 
 }
 
 impl StatementTracker {
 
-    pub fn new() -> StatementTracker {
-        StatementTracker {
-            generated: fnv::FnvHashMap::default(),
-        }
-    }
+    pub fn new() -> StatementTracker { 
+        StatementTracker { 
+            generated: fnv::FnvHashMap::default(), 
+            in_for: false, 
+        } 
+    } 
 
     /// Returns a symbol holding the value of the given `StatementKind` in `(func, block)`. If a
     /// symbol representing this statement does not exist, the statement is added to the program
@@ -330,7 +332,8 @@ pub struct ParallelForData {
     pub innermost: bool,
     /// If `true`, always invoke parallel runtime for the loop.
     pub always_use_runtime: bool,
-    pub grain_size: Option<i32>
+    pub grain_size: Option<i32>,
+    pub outermost: bool,
 }
 
 /// A terminating statement inside a basic block.
@@ -1308,6 +1311,7 @@ fn gen_expr(expr: &Expr,
             ref builder,
             ref func,
         } => {
+            let is_outermost = !tracker.in_for;
             if let ExprKind::Lambda {
                        ref params,
                        ref body,
@@ -1352,8 +1356,10 @@ fn gen_expr(expr: &Expr,
                                       strides: strides_sym,
                                   });
                 }
+                tracker.in_for = true;
                 let (body_end_func, body_end_block, _) =
                     gen_expr(body, prog, body_func, body_block, tracker, multithreaded)?;
+                tracker.in_for = !is_outermost;
                 prog.funcs[body_end_func].blocks[body_end_block].terminator = EndFunction;
                 let cont_func = prog.add_func();
                 let cont_block = prog.funcs[cont_func].add_block();
@@ -1372,7 +1378,8 @@ fn gen_expr(expr: &Expr,
                                     cont: cont_func,
                                     innermost: is_innermost,
                                     always_use_runtime: expr.annotations.always_use_runtime(),
-                                    grain_size: expr.annotations.grain_size().clone()
+                                    grain_size: expr.annotations.grain_size().clone(),
+                                    outermost: is_outermost,
                                 });
                 Ok((cont_func, cont_block, builder_sym))
             } else {

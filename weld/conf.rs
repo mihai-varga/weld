@@ -18,6 +18,7 @@ pub const SIR_OPT_KEY: &'static str = "weld.optimization.sirOptimization";
 pub const LLVM_OPTIMIZATION_LEVEL_KEY: &'static str = "weld.llvm.optimization.level";
 pub const DUMP_CODE_KEY: &'static str = "weld.compile.dumpCode";
 pub const DUMP_CODE_DIR_KEY: &'static str = "weld.compile.dumpCodeDir";
+pub const PARALLEL_NESTED_LOOPS_KEY: &'static str = "weld.compile.parallelNestedLoops";
 
 // Default values of each key
 pub const DEFAULT_MEMORY_LIMIT: i64 = 1000000000;
@@ -28,6 +29,7 @@ pub const DEFAULT_LLVM_OPTIMIZATION_LEVEL: u32 = 2;
 pub const DEFAULT_DUMP_CODE: bool = false;
 pub const DEFAULT_TRACE_RUN: bool = false;
 pub const DEFAULT_EXPERIMENTAL_PASSES: bool = false;
+pub const DEFAULT_PARALLEL_NESTED_LOOPS: bool = true;
 
 lazy_static! {
     pub static ref DEFAULT_OPTIMIZATION_PASSES: Vec<Pass> = {
@@ -54,6 +56,7 @@ pub struct ParsedConf {
     pub optimization_passes: Vec<Pass>,
     pub llvm_optimization_level: u32,
     pub dump_code: DumpCodeConf,
+    pub parallel_nested_loops: bool,
 }
 
 /// Parse a configuration from a WeldConf key-value dictionary.
@@ -103,7 +106,13 @@ pub fn parse(conf: &WeldConf) -> WeldResult<ParsedConf> {
     let trace_run = value.map(|s| parse_bool_flag(&s, "Invalid flag for trace.run"))
                       .unwrap_or(Ok(DEFAULT_TRACE_RUN))?;
 
-    Ok(ParsedConf {
+	let value = get_value(conf, PARALLEL_NESTED_LOOPS_KEY);
+	let parallel_nested_loops =
+		value.map(| s | parse_bool_flag(&s, "Invalid flag for parallelNestedLoops"))
+			.unwrap_or(Ok(DEFAULT_PARALLEL_NESTED_LOOPS))
+		? ;
+
+	Ok(ParsedConf {
         memory_limit: memory_limit,
         threads: threads,
         support_multithread: support_multithread,
@@ -115,7 +124,8 @@ pub fn parse(conf: &WeldConf) -> WeldResult<ParsedConf> {
         dump_code: DumpCodeConf {
             enabled: dump_code_enabled,
             dir: dump_code_dir,
-        }
+        },
+        parallel_nested_loops: parallel_nested_loops,
     })
 }
 
