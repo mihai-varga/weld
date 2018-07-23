@@ -188,7 +188,6 @@ pub fn compile_program(program: &Program, conf: &ParsedConf, stats: &mut Compila
 
     let start = PreciseTime::now();
     let mut gen = LlvmGenerator::new();
-    gen.parallel_nested_loops = conf.parallel_nested_loops;
     gen.multithreaded = conf.support_multithread;
     gen.trace_run = conf.trace_run;
 
@@ -355,8 +354,6 @@ pub struct LlvmGenerator {
     /// If true, compiles the program so that, at runtime, the generated program
     /// prints each SIR statement before evaluating it.
     trace_run: bool,
-    /// If false, only calls runtime for outermost loops.
-    parallel_nested_loops: bool,
 }
 
 impl LlvmGenerator {
@@ -383,8 +380,7 @@ impl LlvmGenerator {
             visited: HashSet::new(),
             type_helpers: fnv::FnvHashMap::default(),
             multithreaded: false,
-            trace_run: false,
-            parallel_nested_loops: true
+            trace_run: false
         };
         generator.prelude_code.add(PRELUDE_CODE);
         generator.prelude_code.add("\n");
@@ -1122,22 +1118,17 @@ impl LlvmGenerator {
                 }
             }
         };
-
         if par_for.innermost {
             // Determine whether to always call parallel, always call serial, or
             // choose based on the loop's size.
-            if !self.parallel_nested_loops {
-                ctx.code.add(format!("br label %for.ser"));
+            if par_for.always_use_runtime {
+                ctx.code.add(format!("br label %for.par"));
             } else {
-                if par_for.always_use_runtime {
-                    ctx.code.add(format!("br label %for.par"));
+                if self.multithreaded {
+                    ctx.code.add(format!("{} = icmp ule i64 {}, {}", bound_cmp, num_iters_str, grain_size));
+                    ctx.code.add(format!("br i1 {}, label %for.ser, label %for.par", bound_cmp));
                 } else {
-                    if self.multithreaded {
-                        ctx.code.add(format!("{} = icmp ule i64 {}, {}", bound_cmp, num_iters_str, grain_size));
-                        ctx.code.add(format!("br i1 {}, label %for.ser, label %for.par", bound_cmp));
-                    } else {
-                        ctx.code.add(format!("br label %for.ser"));
-                    }
+                    ctx.code.add(format!("br label %for.ser"));
                 }
             }
             ctx.code.add(format!("for.ser:"));
@@ -1148,21 +1139,9 @@ impl LlvmGenerator {
             ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", par_for.cont, cont_arg_types));
             ctx.code.add(format!("br label %fn.end"));
         } else {
-            if par_for.outermost || self.parallel_nested_loops {
-                // at least one task is always created for outer loops
-                ctx.code.add("br label %for.par");
-            } else {
-                ctx.code.add(format!("br label %for.ser"));
-                ctx.code.add(format!("for.ser:"));
-                let mut body_arg_types = self.get_arg_str(&func.params, "")?;
-                body_arg_types.push_str(format!(", i64 0, i64 {}", num_iters_str).as_str());
-                ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", func.id, body_arg_types));
-                let cont_arg_types = self.get_arg_str(&sir.funcs[par_for.cont].params, "")?;
-                ctx.code.add(format!("call void @f{}({}, i32 %cur.tid)", par_for.cont, cont_arg_types));
-                ctx.code.add(format!("br label %fn.end"));
-            }
+            // at least one task is always created for outer loops
+            ctx.code.add("br label %for.par");
         }
-
         ctx.code.add(format!("for.par:"));
         self.gen_create_global_mergers(&func.params, ".ptr", &mut ctx)?;
         self.gen_create_global_mergers(&sir.funcs[par_for.cont].params, ".ptr", &mut ctx)?;
@@ -1352,7 +1331,7 @@ impl LlvmGenerator {
         let bld_param_str = llvm_symbol(&par_for.builder);
         let bld_arg_str = llvm_symbol(&par_for.builder_arg);
         ctx.code.add(format!("store {} {}.in, {}* {}", &bld_ty_str, bld_param_str, &bld_ty_str, bld_arg_str));
-        if par_for.innermost || (!par_for.outermost && !self.parallel_nested_loops) {
+        if par_for.innermost {
             ctx.add_alloca("%cur.idx", "i64")?;
         } else {
             ctx.code.add("%cur.idx = getelementptr inbounds %work_t, %work_t* %cur.work, i32 0, i32 3");
